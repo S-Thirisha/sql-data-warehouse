@@ -1,0 +1,125 @@
+-- Check for null or duplicates in the primary key column
+-- Expeccted outcome : No results 
+select 
+cst_id,count(*) 
+from bronze.crm_cust_info 
+group by cst_id 
+having count(*)>1 or cst_id is Null;
+
+-- Check for unwanted space
+-- Expectations : No result
+select * from bronze.crm_cust_info;
+select cst_firstname
+from bronze.crm_cust_info 
+where cst_firstname!=trim(cst_firstname);
+
+--- Data standardization and Normalization
+-- We standardize the values of gender and marital status as "Male","Female" 
+-- and "Married","Single","unknown" instead of 'M','F' and 'M',"S'
+
+select distinct(cst_gndr) from bronze.crm_cust_info;
+
+select distinct(cst_marital_status) from bronze.crm_cust_info;
+
+select * from bronze.crm_cust_info;
+
+
+
+-- data quality check in bronze.crm_prd_info
+
+use dataWarehouse;
+select * from bronze.crm_prd_info;
+
+--check for duplicates in primary id
+
+select prd_id,count(*) from bronze.crm_prd_info group by prd_id having count(*)>1;
+
+-- check unwanted white space
+select prd_nm from bronze.crm_prd_info where prd_nm!=trim(prd_nm);
+
+-- check product cost have null or negative values
+-- replacing null with zero (only if business allows)
+select prd_cost from bronze.crm_prd_info where prd_cost is null or prd_cost<0;
+
+-- Data standardization and consistency
+
+select distinct(prd_line) from bronze.crm_prd_info;
+
+-- checking if start date is less than end date 
+
+select * from bronze.crm_prd_info where prd_end_dt< prd_start_dt;
+
+
+
+
+--- data quality check in bronze.crm_sales_details
+select * from bronze.crm_sales_details;
+-- check data consistency between sls_slaes,sls_quantity,sls_pice
+-- >> sales=quantity* price
+-- >> values must not be null,zero, or negative
+select * from bronze.crm_sales_details 
+where  sls_sales!=sls_quantity*sls_price or sls_price<0
+or sls_sales< 0 or sls_sales is null or sls_price is null or sls_quantity<1;
+
+
+select 
+case when sls_sales < 0 or sls_sales is null or sls_sales!=abs(sls_price)*sls_quantity then sls_quantity*abs(sls_price)
+else sls_sales
+end as sls_sales,
+case when sls_price<=0  or sls_price is null then sls_sales/Nullif(sls_quantity,0)
+  else sls_price
+end as sls_price,
+sls_quantity from bronze.crm_sales_details where sls_quantity>1 ;
+
+
+-- erp_cust_az12
+use dataWarehouse
+select * from bronze.erp_cust_az12;
+
+-- check for whitspace
+select * from bronze.erp_cust_az12 where cid!=trim(cid);
+
+-- duplicate
+select cid,count(*) from bronze.erp_cust_az12 group by cid having count(*)>1;
+
+-- check for standardization and consistency 
+select 
+distinct(gen)
+from bronze.erp_cust_az12;
+
+-- bdate in future
+select bdate from bronze.erp_cust_az12 where bdate>getdate();
+
+
+-- erp_loc_a101
+-- check whether cid can be joined with cuust info table
+select 
+Replace(cid,'-','')  cid,
+cntry
+from bronze.erp_loc_a101 where Replace(cid,'-','')  not in (select cst_key from silver.crm_cust_info);
+
+-- data consistency
+select distinct(cntry) from bronze.erp_loc_a101 order by cntry;
+
+select 
+distinct(cntry),
+case 
+	when upper(trim(cntry)) in ('UNITED STATES','US','USA') then 'United States'
+	when upper(trim(cntry))='DE' then 'Deutschland'
+	when upper(trim(cntry))='' or cntry IS NULL then 'n/a'
+	else trim(cntry)
+end as cntry
+from bronze.erp_loc_a101
+
+--  erp_px_cat_g1v2
+
+select * from bronze.erp_px_cat_g1v2;
+-- duplicates check
+select distinct(id),count(*) from bronze.erp_px_cat_g1v2 group by id having count(*) >1;
+--  white space
+select subcat from bronze.erp_px_cat_g1v2 where trim(subcat)!=subcat;
+-- standardization
+select distinct(maintenance) from bronze.erp_px_cat_g1v2;
+select distinct(cat) from bronze.erp_px_cat_g1v2;
+select distinct(subcat) from bronze.erp_px_cat_g1v2;
+
